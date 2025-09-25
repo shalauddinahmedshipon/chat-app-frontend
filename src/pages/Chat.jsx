@@ -1,15 +1,23 @@
+// src/pages/Chat.jsx
 import { useEffect } from "react";
 import ConversationList from "../components/chat/ConversationList";
 import ChatBox from "../components/chat/ChatBox";
 import useChatStore from "../store/chatStore";
-
+import useUserStore from "../store/userStore";
 
 export default function Chat() {
-  const { fetchConversations, activeConversation } = useChatStore();
+  const { fetchConversations, activeConversation, initSocket } = useChatStore();
+  const user = useUserStore((s) => s.user);
+  const token = useUserStore((s) => s.token);
 
   useEffect(() => {
+    // initialize socket with token and userId (user must be defined)
+    if (token && user) {
+      initSocket(token, user.id);
+    }
+    // fetch initial conversations list
     fetchConversations();
-  }, []);
+  }, [token, user]);
 
   return (
     <div className="flex h-screen">

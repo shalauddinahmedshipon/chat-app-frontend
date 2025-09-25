@@ -1,33 +1,121 @@
-import { useEffect } from "react";
+// src/components/chat/ChatBox.jsx
+import { useEffect, useRef } from "react";
 import useChatStore from "../../store/chatStore";
+import useUserStore from "../../store/userStore";
 import MessageInput from "./MessageInput";
-
 
 export default function ChatBox({ conversation }) {
   const { messages, fetchMessages } = useChatStore();
+  const user = useUserStore((s) => s.user);
 
+  const messagesEndRef = useRef(null);
+
+  // Fetch messages when conversation changes
   useEffect(() => {
     if (conversation?.id) fetchMessages(conversation.id);
-  }, [conversation]);
+  }, [conversation, fetchMessages]);
+
+  // Auto-scroll on new messages
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
+  if (!conversation) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-gray-500">
+        Select a conversation to start chatting
+      </div>
+    );
+  }
+
+  // Determine receiver (the "other" user)
+  const receiver =
+    conversation.userId === user?.id
+      ? conversation.provider
+      : conversation.user;
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 p-4 overflow-y-auto space-y-2">
-       {messages.map((msg) =>
-  msg?.content ? (
-    <div
-      key={msg.id}
-      className={`p-2 rounded max-w-xs ${
-        (msg.sender?.id || msg.senderId) === conversation.userId ? "bg-blue-200 self-start" : "bg-green-200 self-end"
-      }`}
-    >
-      {msg.content}
-    </div>
-  ) : null
-)}
-
-
+      {/* Top Navbar (fixed at top) */}
+      <div className="sticky top-0 z-10 p-4 border-b bg-gray-100 font-semibold text-lg shadow-sm">
+        {receiver?.name || receiver?.bussinessName || "Chat"}
       </div>
+
+      {/* Messages Area */}
+      <div className="flex-1 p-4 overflow-y-auto space-y-3">
+        {messages.length === 0 && (
+          <p className="text-gray-500 text-center">No messages yet</p>
+        )}
+
+        {messages.map((msg) => {
+          const isMine =
+            msg.senderId === user?.id ||
+            (msg.sender && msg.sender.id === user?.id);
+
+          const isImage =
+            msg.fileUrl &&
+            /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.fileUrl);
+
+          return (
+            <div
+              key={msg.id}
+              className={`flex w-full ${isMine ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`p-3 rounded-2xl max-w-xs shadow ${
+                  isMine
+                    ? "bg-blue-600 text-white rounded-br-none"
+                    : "bg-gray-200 text-black rounded-bl-none"
+                }`}
+              >
+                {/* Text content */}
+                {msg.content && <p>{msg.content}</p>}
+
+                {/* File (image or link) */}
+                {msg.fileUrl && (
+                  <div className="mt-2">
+                    {isImage ? (
+                      <img
+                        src={msg.fileUrl}
+                        alt="attachment"
+                        className="max-w-full rounded"
+                      />
+                    ) : (
+                      <a
+                        href={msg.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm underline"
+                      >
+                        📎 Download file
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {/* Time */}
+                <div
+                  className={`text-xs mt-1 ${
+                    isMine ? "text-gray-200" : "text-gray-500"
+                  }`}
+                >
+                  {new Date(msg.createdAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Auto-scroll anchor */}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input */}
       <div className="p-4 border-t">
         <MessageInput conversationId={conversation.id} />
       </div>
