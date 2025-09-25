@@ -4,6 +4,7 @@ import useChatStore from "../../store/chatStore";
 import useUserStore from "../../store/userStore";
 import MessageInput from "./MessageInput";
 
+
 export default function ChatBox({ conversation }) {
   const { messages, fetchMessages } = useChatStore();
   const user = useUserStore((s) => s.user);
@@ -33,14 +34,16 @@ export default function ChatBox({ conversation }) {
   // Determine receiver (the "other" user)
   const receiver =
     conversation.userId === user?.id
-      ? conversation.provider
-      : conversation.user;
+      ? conversation?.provider?.providerProfile?.bussinessName
+      : conversation?.user?.name;
 
   return (
     <div className="flex flex-col h-full">
       {/* Top Navbar (fixed at top) */}
-      <div className="sticky top-0 z-10 p-4 border-b bg-gray-100 font-semibold text-lg shadow-sm">
-        {receiver?.name || receiver?.bussinessName || "Chat"}
+      <div className="sticky flex justify-between top-0 z-10 p-4 border-b bg-gray-100 font-semibold text-lg shadow-sm">
+       {/* <h1> {receiver?.name || receiver?.providerProfile?.bussinessName || "Chat"}</h1> */}
+         <h1> {receiver||"Chat"}</h1>
+   
       </div>
 
       {/* Messages Area */}

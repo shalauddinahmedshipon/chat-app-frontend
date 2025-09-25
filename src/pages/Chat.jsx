@@ -1,38 +1,87 @@
-// src/pages/Chat.jsx
 import { useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
 import ConversationList from "../components/chat/ConversationList";
 import ChatBox from "../components/chat/ChatBox";
 import useChatStore from "../store/chatStore";
 import useUserStore from "../store/userStore";
 
 export default function Chat() {
-  const { fetchConversations, activeConversation, initSocket } = useChatStore();
+  const location = useLocation();
+  const query = new URLSearchParams(location.search);
+  const conversationId = query.get("conversationId");
+  const providerId = query.get("providerId");
+  const providerName = query.get("providerName");
+console.log(providerId,providerName)
+  const {
+    fetchConversations,
+    setActiveConversation,
+    initSocket,
+    activeConversation,
+  } = useChatStore();
+// console.log(
+//   "providerId:",providerId,
+//   "conId:",conversationId,
+//   providerName)
   const user = useUserStore((s) => s.user);
   const token = useUserStore((s) => s.token);
 
+  // Initialize socket + load conversations
   useEffect(() => {
-    // initialize socket with token and userId (user must be defined)
     if (token && user) {
       initSocket(token, user.id);
     }
-    // fetch initial conversations list
     fetchConversations();
-  }, [token, user]);
+  }, [token, user, initSocket, fetchConversations]);
+
+  // Handle query params: set active or virtual conversation
+  useEffect(() => {
+    const state = useChatStore.getState();
+
+    if (conversationId) {
+      const existingConversation = state.conversations.find(
+        (c) => c.id === conversationId
+      );
+      if (existingConversation) {
+        setActiveConversation(existingConversation);
+      } else {
+        setActiveConversation({ id: conversationId });
+      }
+    } else if (providerId) {
+      const existingConv = state.conversations.find(
+        (c) => c.providerId === providerId || c.userId === providerId
+      );
+
+      if (existingConv) {
+        setActiveConversation(existingConv);
+      } else {
+        // Virtual conversation
+        setActiveConversation({
+          id: `virtual-${providerId}`,
+          providerId,
+          userId: user?.id,
+          provider: { id: providerId, bussinessName: providerName },
+          messages: [],
+        });
+      }
+    }
+  }, [conversationId, providerId, providerName, setActiveConversation, user]);
 
   return (
     <div className="flex h-screen">
-      {/* Conversation list */}
       <div className="w-1/4 border-r">
+       <Link to={"/providers"}>
+       <button className="text-sm px-4 bg-gray-400 rounded-xl">All Provider</button>
+    </Link>
         <h2 className="font-bold p-4 border-b">Conversations</h2>
         <ConversationList />
       </div>
-
-      {/* Chat box */}
       <div className="flex-1">
         {activeConversation ? (
           <ChatBox conversation={activeConversation} />
         ) : (
-          <p className="p-6 text-gray-500">Select a conversation to start chatting</p>
+          <p className="p-6 text-gray-500">
+            Select a conversation to start chatting
+          </p>
         )}
       </div>
     </div>
