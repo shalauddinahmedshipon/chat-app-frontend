@@ -74,26 +74,27 @@ export default function ChatBox({ conversation }) {
                 {msg.content && <p>{msg.content}</p>}
 
                 {/* File (image or link) */}
-                {msg.fileUrl && (
-                  <div className="mt-2">
-                    {isImage ? (
-                      <img
-                        src={msg.fileUrl}
-                        alt="attachment"
-                        className="max-w-full rounded"
-                      />
-                    ) : (
-                      <a
-                        href={msg.fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm underline"
-                      >
-                        📎 Download file
-                      </a>
-                    )}
-                  </div>
-                )}
+              {msg.fileUrl && (
+  <div className="mt-2">
+    {msg.fileUrl.startsWith("data:") || /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.fileUrl) ? (
+      <img
+        src={msg.fileUrl}
+        alt="attachment"
+        className="max-w-full rounded"
+      />
+    ) : (
+      <a
+        href={msg.fileUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="text-sm underline"
+      >
+        📎 Download file
+      </a>
+    )}
+  </div>
+)}
+
 
                 {/* Time */}
                 <div

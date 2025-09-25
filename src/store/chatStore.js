@@ -40,45 +40,51 @@ const useChatStore = create((set, get) => ({
     });
 
     // ✅ Handle new messages without duplicates
-    socket.on("newMessage", (message) => {
-      const active = get().activeConversation;
+  // ✅ Handle new messages without duplicates
+socket.on("newMessage", (message) => {
+  const active = get().activeConversation;
 
-      set((state) => {
-        let newMessages = [...state.messages];
+  set((state) => {
+    let newMessages = [...state.messages];
 
-        // If temp message exists with same sender & content, replace it
-        const tempIndex = newMessages.findIndex(
-          (m) =>
-            m.senderId === message.senderId &&
-            m.content === message.content &&
-            m.id.startsWith("tmp-")
-        );
+    // Match temp message either by content or Base64 file
+    const tempIndex = newMessages.findIndex(
+      (m) =>
+        m.id.startsWith("tmp-") &&
+        (
+          (m.content && m.content === message.content) ||
+          (m.fileUrl && m.fileUrl.startsWith("data:"))
+        )
+    );
 
-        if (tempIndex !== -1) {
-          newMessages[tempIndex] = message; // replace temp with real
-        } else if (active && active.id === message.conversationId) {
-          newMessages = [...newMessages, message]; // append
-        }
+    if (tempIndex !== -1) {
+      // Replace temp with real message
+      newMessages[tempIndex] = message;
+    } else if (active && active.id === message.conversationId) {
+      // Append new message if no temp match
+      newMessages = [...newMessages, message];
+    }
 
-        return { messages: newMessages };
-      });
+    return { messages: newMessages };
+  });
 
-      // update conversation preview + unread count
-      const convs = get().conversations.slice();
-      const idx = convs.findIndex((c) => c.id === message.conversationId);
-      if (idx !== -1) {
-        convs[idx] = {
-          ...convs[idx],
-          messages: [message, ...(convs[idx].messages?.slice(0) || [])],
-          unreadCount:
-            active && active.id === message.conversationId
-              ? 0
-              : (convs[idx].unreadCount || 0) + 1,
-          updatedAt: message.createdAt,
-        };
-        set({ conversations: convs });
-      }
-    });
+  // Update conversation preview + unread count
+  const convs = get().conversations.slice();
+  const idx = convs.findIndex((c) => c.id === message.conversationId);
+  if (idx !== -1) {
+    convs[idx] = {
+      ...convs[idx],
+      messages: [message, ...(convs[idx].messages?.slice(0) || [])],
+      unreadCount:
+        active && active.id === message.conversationId
+          ? 0
+          : (convs[idx].unreadCount || 0) + 1,
+      updatedAt: message.createdAt,
+    };
+    set({ conversations: convs });
+  }
+});
+
 
     socket.on("connect_error", (err) => {
       console.warn("Socket connect_error", err.message);
@@ -157,38 +163,44 @@ const useChatStore = create((set, get) => ({
     }
   },
 
-  // Send message (via WebSocket)
-  sendMessage: async (conversationId, content, file = null) => {
-    if (file) {
-      // fallback to REST for file uploads if needed
-      console.warn("File sending not yet implemented");
-      return;
-    }
+ // src/store/chatStore.js
+sendMessage: async (conversationId, content, file = null) => {
+  const s = get().socket;
+  const userId = get().userId;
+  if (!s) return console.warn("Socket not connected");
 
-    const s = get().socket;
-    const userId = get().userId;
-    if (!s) {
-      console.warn("Socket not connected; cannot send message.");
-      return;
-    }
+  let fileBase64 = null;
+  if (file) {
+    fileBase64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
 
-    const payload = { conversationId, senderId: userId, content };
+  const payload = {
+    conversationId,
+    senderId: userId,
+    content,
+    fileUrl: fileBase64, // send Base64 only for temp
+  };
 
-    // Optimistic temp message
-    const tempMessage = {
-      id: "tmp-" + Date.now(),
-      conversationId,
-      senderId: userId,
-      content,
-      fileUrl: null,
-      isRead: false,
-      createdAt: new Date().toISOString(),
-    };
-    set((state) => ({ messages: [...state.messages, tempMessage] }));
+  const tempMessage = {
+    id: "tmp-" + Date.now(),
+    conversationId,
+    senderId: userId,
+    content,
+    fileUrl: fileBase64,
+    isRead: false,
+    createdAt: new Date().toISOString(),
+  };
+  set((state) => ({ messages: [...state.messages, tempMessage] }));
 
-    // Send to server
-    s.emit("sendMessage", payload);
-  },
+  s.emit("sendMessage", payload);
+},
+
+
 }));
 
 export default useChatStore;
