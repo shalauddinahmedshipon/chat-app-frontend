@@ -212,10 +212,16 @@ socket.on("newMessage", (message) => {
           c.id === realConversation.id ? { ...c, unreadCount: 0 } : c
         ),
       }));
-    } else if (isVirtual) {
-      set({ messages: [] });
-      set((state) => ({ conversations: [...state.conversations, realConversation] }));
-    }
+    }  else if (isVirtual) {
+  set({ messages: [] });
+  set((state) => {
+    // prevent duplicates
+    const exists = state.conversations.some(c => c.id === conversation.id);
+    return exists
+      ? { conversations: state.conversations }
+      : { conversations: [...state.conversations, realConversation] };
+  });
+}
   },
 
   fetchMessages: async (conversationId, page = 1, limit = 50) => {
@@ -237,67 +243,92 @@ socket.on("newMessage", (message) => {
       console.error("fetchMessages error:", err);
     }
   },
+sendMessage: async (conversationId, content, file = null) => {
+  const s = get().socket;
+  const userId = get().userId;
+  if (!s) return console.warn("Socket not connected");
 
-  sendMessage: async (conversationId, content, file = null) => {
-    const s = get().socket;
-    const userId = get().userId;
-    if (!s) return console.warn("Socket not connected");
+  let fileBase64 = null;
+  if (file) {
+    fileBase64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
 
-    let fileBase64 = null;
-    if (file) {
-      fileBase64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-    }
+  let realConversationId = conversationId;
 
-    let realConversationId = conversationId;
+  // Handle virtual conversation
+  if (conversationId.startsWith("virtual_")) {
+    try {
+      const parts = conversationId.split("_");
+      const providerId = parts[1];
+      if (!providerId) throw new Error("Invalid virtual conversation ID");
 
-    if (conversationId.startsWith("virtual_")) {
-      try {
-        const parts = conversationId.split("_");
-        const providerId = parts[1];
-        if (!providerId) throw new Error("Invalid virtual conversation ID");
+      // Call API to create real conversation
+      const res = await startConversationApi(providerId);
+      if (!res?.data?.id) throw new Error("Invalid conversation returned");
 
-        const res = await startConversationApi(providerId);
-        if (!res?.data?.id) throw new Error("Invalid conversation returned");
+      realConversationId = res.data.id;
 
-        realConversationId = res.data.id;
-        set((state) => ({
-          conversations: [...state.conversations, res.data],
-          activeConversation: res.data,
+      // Merge virtual conversation data with real conversation
+      const virtualConv = get().conversations.find(c => c.id === conversationId);
+
+      const mergedConversation = {
+        ...res.data,
+        user: virtualConv?.user || {},
+        provider: {
+          ...res.data.provider,
+          providerProfile:
+            res.data.provider?.providerProfile ||
+            virtualConv?.provider?.providerProfile,
+        },
+      };
+
+      // Update state: replace virtual with merged conversation
+      set((state) => {
+        const filtered = state.conversations.filter(c => c.id !== conversationId);
+        return {
+          conversations: [...filtered, mergedConversation],
+          activeConversation: mergedConversation,
           messages: [],
-        }));
+        };
+      });
 
-        s.emit("joinConversation", realConversationId);
-      } catch (err) {
-        console.error("Failed to create conversation from virtual:", err);
-        return;
-      }
+      s.emit("joinConversation", realConversationId);
+    } catch (err) {
+      console.error("Failed to create conversation from virtual:", err);
+      return;
     }
+  }
 
-    const payload = {
-      conversationId: realConversationId,
-      senderId: userId,
-      content,
-      fileUrl: fileBase64,
-    };
+  // Prepare message payload
+  const payload = {
+    conversationId: realConversationId,
+    senderId: userId,
+    content,
+    fileUrl: fileBase64,
+  };
 
-    const tempMessage = {
-      id: "tmp-" + Date.now(),
-      conversationId: realConversationId,
-      senderId: userId,
-      content,
-      fileUrl: fileBase64,
-      isRead: false,
-      createdAt: new Date().toISOString(),
-    };
+  const tempMessage = {
+    id: "tmp-" + Date.now(),
+    conversationId: realConversationId,
+    senderId: userId,
+    content,
+    fileUrl: fileBase64,
+    isRead: false,
+    createdAt: new Date().toISOString(),
+  };
 
-    set((state) => ({ messages: [...state.messages, tempMessage] }));
-    s.emit("sendMessage", payload);
-  },
+  // Optimistically add message
+  set((state) => ({ messages: [...state.messages, tempMessage] }));
+
+  // Emit to socket
+  s.emit("sendMessage", payload);
+},
+
 }));
 
 export default useChatStore;

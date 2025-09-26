@@ -13,15 +13,9 @@ export default function Chat() {
   const providerName = query.get("providerName");
 console.log(providerId,providerName)
   const {
-    fetchConversations,
-    setActiveConversation,
-    initSocket,
-    activeConversation,
+    fetchConversations, setActiveConversation, initSocket, activeConversation
   } = useChatStore();
-// console.log(
-//   "providerId:",providerId,
-//   "conId:",conversationId,
-//   providerName)
+
   const user = useUserStore((s) => s.user);
   const token = useUserStore((s) => s.token);
 
@@ -33,38 +27,73 @@ console.log(providerId,providerName)
     fetchConversations();
   }, [token, user, initSocket, fetchConversations]);
 
-  // Handle query params: set active or virtual conversation
-  useEffect(() => {
-    const state = useChatStore.getState();
 
-    if (conversationId) {
-      const existingConversation = state.conversations.find(
-        (c) => c.id === conversationId
-      );
-      if (existingConversation) {
-        setActiveConversation(existingConversation);
+// Handle query params: set active or virtual conversation
+useEffect(() => {
+  const state = useChatStore.getState();
+
+  if (conversationId) {
+    const existingConversation = state.conversations.find(
+      (c) => c.id === conversationId
+    );
+    if (existingConversation) {
+      setActiveConversation(existingConversation);
+    } else {
+      // No real conversation found, create virtual conversation
+      if (providerId && providerName && user) {
+        const virtualConv = {
+          id: conversationId.startsWith("virtual_")
+            ? conversationId
+            : `virtual_${providerId}_${Date.now()}`,
+          providerId,
+          userId: user.id,
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+          },
+          provider: {
+            id: providerId,
+            providerProfile: { bussinessName: providerName },
+          },
+          messages: [],
+          unreadCount: 0,
+        };
+        setActiveConversation(virtualConv, true);
       } else {
         setActiveConversation({ id: conversationId });
       }
-    } else if (providerId) {
-      const existingConv = state.conversations.find(
-        (c) => c.providerId === providerId || c.userId === providerId
-      );
-
-      if (existingConv) {
-        setActiveConversation(existingConv);
-      } else {
-        // Virtual conversation
-        setActiveConversation({
-          id: `virtual-${providerId}`,
-          providerId,
-          userId: user?.id,
-          provider: { id: providerId, bussinessName: providerName },
-          messages: [],
-        });
-      }
     }
-  }, [conversationId, providerId, providerName, setActiveConversation, user]);
+  } else if (providerId && providerName && user) {
+    const existingConv = state.conversations.find(
+      (c) => c.providerId === providerId || c.userId === providerId
+    );
+
+    if (existingConv) {
+      setActiveConversation(existingConv);
+    } else {
+      // Create virtual conversation like ProviderCard
+      const virtualId = `virtual_${providerId}_${Date.now()}`;
+      const virtualConv = {
+        id: virtualId,
+        providerId,
+        userId: user.id,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+        },
+        provider: {
+          id: providerId,
+          providerProfile: { bussinessName: providerName },
+        },
+        messages: [],
+        unreadCount: 0,
+      };
+      setActiveConversation(virtualConv, true);
+    }
+  }
+}, [conversationId, providerId, providerName, setActiveConversation, user]);
 
   return (
     <div className="flex h-screen">

@@ -21,13 +21,26 @@ const handleMessage = () => {
   let conv = existingConv;
   if (!conv) {
     const virtualId = `virtual_${provider.user.id}_${Date.now()}`;
-    conv = {
-      id: virtualId,
-      providerId: provider.user.id,
-      providerName: provider.bussinessName,
-      messages: [],
-      unreadCount: 0,
-    };
+   conv = {
+  id: virtualId,
+  providerId: provider.user.id,
+  userId: user.id,
+  user: {
+    id: user.id,
+    name: user.name, // ✅ include name
+    email: user.email,
+  },
+  provider: {
+    id: provider.user.id,
+    providerProfile: {
+      bussinessName: provider.bussinessName,
+    },
+
+  },
+  messages: [],
+  unreadCount: 0,
+};
+
     setActiveConversation(conv, true);
   } else {
     setActiveConversation(conv);

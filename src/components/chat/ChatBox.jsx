@@ -31,18 +31,21 @@ export default function ChatBox({ conversation }) {
     );
   }
 
-  // Determine receiver (the "other" user)
-  const receiver =
-    conversation.userId === user?.id
-      ? conversation?.provider?.providerProfile?.bussinessName
-      : conversation?.user?.name;
+
+
+const receiver = conversation?.userId === user?.id
+  ? conversation?.provider?.providerProfile?.bussinessName || "Chat"
+  : conversation?.user?.name || "Chat"; // ✅ always exists
+
+
+console.log("receiver",receiver)
 
   return (
     <div className="flex flex-col h-full">
       {/* Top Navbar (fixed at top) */}
       <div className="sticky flex justify-between top-0 z-10 p-4 border-b bg-gray-100 font-semibold text-lg shadow-sm">
        {/* <h1> {receiver?.name || receiver?.providerProfile?.bussinessName || "Chat"}</h1> */}
-         <h1> {receiver||"Chat"}</h1>
+         <h1> {receiver}</h1>
    
       </div>
 
