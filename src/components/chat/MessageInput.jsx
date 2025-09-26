@@ -1,4 +1,3 @@
-// src/components/chat/MessageInput.jsx
 import { useState } from "react";
 import useChatStore from "../../store/chatStore";
 
@@ -28,6 +27,7 @@ export default function MessageInput({ conversationId }) {
     e.preventDefault();
     if (!text.trim() && !file) return; // require either
 
+    // Directly send to real conversation
     await sendMessage(conversationId, text, file);
 
     // Clear inputs

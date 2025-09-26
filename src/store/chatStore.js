@@ -18,7 +18,6 @@ const useChatStore = create((set, get) => ({
   connected: false,
   loadingConversations: false,
 
-  // Initialize socket connection
   initSocket: (token, userId) => {
     if (!token) return;
     if (get().socket) return;
@@ -36,50 +35,46 @@ const useChatStore = create((set, get) => ({
 
     socket.on("disconnect", () => set({ connected: false }));
 
-// Handle conversation updates
-socket.on("conversationUpdated", (payload) => {
-  const myId = get().userId;
-  const active = get().activeConversation;
+    socket.on("conversationUpdated", (payload) => {
+      const myId = get().userId;
+      const active = get().activeConversation;
 
-  set((state) => {
-    let convs = [...state.conversations];
-    const idx = convs.findIndex((c) => c.id === payload.conversationId);
-    const isActive = active && active.id === payload.conversationId;
+      set((state) => {
+        let convs = [...state.conversations];
+        const idx = convs.findIndex((c) => c.id === payload.conversationId);
+        const isActive = active && active.id === payload.conversationId;
 
-    if (idx !== -1) {
-      const existingMessages = convs[idx].messages || [];
-      const lastMsgId = existingMessages[0]?.id;
+        if (idx !== -1) {
+          const existingMessages = convs[idx].messages || [];
+          const lastMsgId = existingMessages[0]?.id;
+          const alreadyExists = lastMsgId === payload.lastMessage.id;
 
-      // Avoid double counting same message
-      const alreadyExists = lastMsgId === payload.lastMessage.id;
+          convs[idx] = {
+            ...convs[idx],
+            messages: alreadyExists
+              ? existingMessages
+              : [payload.lastMessage, ...existingMessages],
+            unreadCount:
+              payload.lastMessage.senderId === myId || isActive || alreadyExists
+                ? convs[idx].unreadCount
+                : (convs[idx].unreadCount || 0) + 1,
+            updatedAt: payload.lastMessage.createdAt,
+          };
+        } else {
+          convs.unshift({
+            id: payload.conversationId,
+            messages: [payload.lastMessage],
+            unreadCount:
+              payload.lastMessage.senderId === myId || isActive ? 0 : 1,
+            updatedAt: payload.lastMessage.createdAt,
+          });
+        }
 
-      convs[idx] = {
-        ...convs[idx],
-        messages: alreadyExists
-          ? existingMessages
-          : [payload.lastMessage, ...existingMessages],
-        unreadCount:
-          payload.lastMessage.senderId === myId || isActive || alreadyExists
-            ? convs[idx].unreadCount
-            : (convs[idx].unreadCount || 0) + 1,
-        updatedAt: payload.lastMessage.createdAt,
-      };
-    } else {
-      convs.unshift({
-        id: payload.conversationId,
-        messages: [payload.lastMessage],
-        unreadCount:
-          payload.lastMessage.senderId === myId || isActive ? 0 : 1,
-        updatedAt: payload.lastMessage.createdAt,
+        convs.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        return { conversations: convs };
       });
-    }
+    });
 
-    convs.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-    return { conversations: convs };
-  });
-});
-
-    // Mark messages as read
     socket.on("messagesRead", ({ conversationId, readerId }) => {
       set((state) => {
         const convs = state.conversations.map((c) =>
@@ -97,56 +92,56 @@ socket.on("conversationUpdated", (payload) => {
       });
     });
 
-    // Handle new incoming messages
-socket.on("newMessage", (message) => {
-  const active = get().activeConversation;
-  const myId = get().userId;
-  const isActive = active && active.id === message.conversationId;
+    socket.on("newMessage", (message) => {
+      const active = get().activeConversation;
+      const myId = get().userId;
+      const isActive = active && active.id === message.conversationId;
 
-  set((state) => {
-    let newMessages = [...state.messages];
+      set((state) => {
+        let newMessages = [...state.messages];
 
-    const tempIndex = newMessages.findIndex(
-      (m) =>
-        m.id.startsWith("tmp-") &&
-        ((m.content && m.content === message.content) ||
-          (m.fileUrl && m.fileUrl.startsWith("data:")))
-    );
+        const tempIndex = newMessages.findIndex(
+          (m) =>
+            m.id.startsWith("tmp-") &&
+            ((m.content && m.content === message.content) ||
+              (m.fileUrl && m.fileUrl.startsWith("data:")))
+        );
 
-    if (tempIndex !== -1) newMessages[tempIndex] = message;
-    else if (isActive) newMessages.push(message); // Only push to messages if active
+        if (tempIndex !== -1) newMessages[tempIndex] = message;
+        else if (isActive) newMessages.push(message);
 
-    const convs = [...state.conversations];
-    const idx = convs.findIndex((c) => c.id === message.conversationId);
-    const existingMessages = convs[idx]?.messages || [];
-    const lastMsgId = existingMessages[0]?.id;
-    const alreadyExists = lastMsgId === message.id;
+        const convs = [...state.conversations];
+        const idx = convs.findIndex((c) => c.id === message.conversationId);
+        const existingMessages = convs[idx]?.messages || [];
+        const lastMsgId = existingMessages[0]?.id;
+        const alreadyExists = lastMsgId === message.id;
 
-    if (idx !== -1) {
-      convs[idx] = {
-        ...convs[idx],
-        messages: alreadyExists
-          ? existingMessages
-          : [message, ...existingMessages],
-        unreadCount:
-          message.senderId === myId || isActive || alreadyExists
-            ? convs[idx].unreadCount
-            : (convs[idx].unreadCount || 0) + 1,
-        updatedAt: message.createdAt,
-      };
-    } else {
-      convs.unshift({
-        id: message.conversationId,
-        messages: [message],
-        unreadCount: message.senderId === myId || isActive ? 0 : 1,
-        updatedAt: message.createdAt,
+        if (idx !== -1) {
+          convs[idx] = {
+            ...convs[idx],
+            messages: alreadyExists
+              ? existingMessages
+              : [message, ...existingMessages],
+            unreadCount:
+              message.senderId === myId || isActive || alreadyExists
+                ? convs[idx].unreadCount
+                : (convs[idx].unreadCount || 0) + 1,
+            updatedAt: message.createdAt,
+          };
+        } else {
+          convs.unshift({
+            id: message.conversationId,
+            messages: [message],
+            unreadCount: message.senderId === myId || isActive ? 0 : 1,
+            updatedAt: message.createdAt,
+          });
+        }
+
+        convs.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        return { messages: newMessages, conversations: convs };
       });
-    }
+    });
 
-    convs.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-    return { messages: newMessages, conversations: convs };
-  });
-});
     socket.on("connect_error", (err) => console.warn("Socket error:", err.message));
 
     set({ socket });
@@ -185,51 +180,26 @@ socket.on("newMessage", (message) => {
     }
   },
 
-  setActiveConversation: async (conversation, isVirtual = false) => {
+  setActiveConversation: async (conversation) => {
     if (!conversation) return;
-
     const s = get().socket;
-    let realConversation = conversation;
 
-    if (isVirtual && conversation.providerId) {
-      const existing = get().conversations.find(
-        (c) => c.providerId === conversation.providerId
-      );
-      if (existing) {
-        realConversation = existing;
-        isVirtual = false;
-      }
-    }
+    set({ activeConversation: conversation, messages: [] });
 
-    set({ activeConversation: realConversation, messages: [] });
-
-    if (s && !isVirtual && realConversation.id) {
-      s.emit("joinConversation", realConversation.id);
-      s.emit("markAsRead", { conversationId: realConversation.id, userId: get().userId });
-      await get().fetchMessages(realConversation.id);
+    if (s && conversation.id) {
+      s.emit("joinConversation", conversation.id);
+      s.emit("markAsRead", { conversationId: conversation.id, userId: get().userId });
+      await get().fetchMessages(conversation.id);
       set((state) => ({
         conversations: state.conversations.map((c) =>
-          c.id === realConversation.id ? { ...c, unreadCount: 0 } : c
+          c.id === conversation.id ? { ...c, unreadCount: 0 } : c
         ),
       }));
-    }  else if (isVirtual) {
-  set({ messages: [] });
-  set((state) => {
-    // prevent duplicates
-    const exists = state.conversations.some(c => c.id === conversation.id);
-    return exists
-      ? { conversations: state.conversations }
-      : { conversations: [...state.conversations, realConversation] };
-  });
-}
+    }
   },
 
   fetchMessages: async (conversationId, page = 1, limit = 50) => {
     if (!conversationId) return;
-    if (conversationId.startsWith("virtual_")) {
-      set({ messages: [] });
-      return;
-    }
     try {
       const res = await getMessagesApi(conversationId, page, limit);
       const msgs = res.data?.data || res.data || res;
@@ -243,92 +213,67 @@ socket.on("newMessage", (message) => {
       console.error("fetchMessages error:", err);
     }
   },
-sendMessage: async (conversationId, content, file = null) => {
-  const s = get().socket;
-  const userId = get().userId;
-  if (!s) return console.warn("Socket not connected");
 
-  let fileBase64 = null;
-  if (file) {
-    fileBase64 = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
+  sendMessage: async (conversationId, content, file = null) => {
+    const s = get().socket;
+    const userId = get().userId;
+    if (!s) return console.warn("Socket not connected");
 
-  let realConversationId = conversationId;
-
-  // Handle virtual conversation
-  if (conversationId.startsWith("virtual_")) {
-    try {
-      const parts = conversationId.split("_");
-      const providerId = parts[1];
-      if (!providerId) throw new Error("Invalid virtual conversation ID");
-
-      // Call API to create real conversation
-      const res = await startConversationApi(providerId);
-      if (!res?.data?.id) throw new Error("Invalid conversation returned");
-
-      realConversationId = res.data.id;
-
-      // Merge virtual conversation data with real conversation
-      const virtualConv = get().conversations.find(c => c.id === conversationId);
-
-      const mergedConversation = {
-        ...res.data,
-        user: virtualConv?.user || {},
-        provider: {
-          ...res.data.provider,
-          providerProfile:
-            res.data.provider?.providerProfile ||
-            virtualConv?.provider?.providerProfile,
-        },
-      };
-
-      // Update state: replace virtual with merged conversation
-      set((state) => {
-        const filtered = state.conversations.filter(c => c.id !== conversationId);
-        return {
-          conversations: [...filtered, mergedConversation],
-          activeConversation: mergedConversation,
-          messages: [],
-        };
+    let fileBase64 = null;
+    if (file) {
+      fileBase64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
       });
-
-      s.emit("joinConversation", realConversationId);
-    } catch (err) {
-      console.error("Failed to create conversation from virtual:", err);
-      return;
     }
-  }
 
-  // Prepare message payload
-  const payload = {
-    conversationId: realConversationId,
-    senderId: userId,
-    content,
-    fileUrl: fileBase64,
-  };
+    let realConversationId = conversationId;
 
-  const tempMessage = {
-    id: "tmp-" + Date.now(),
-    conversationId: realConversationId,
-    senderId: userId,
-    content,
-    fileUrl: fileBase64,
-    isRead: false,
-    createdAt: new Date().toISOString(),
-  };
+    // If conversation does not exist, create it
+    const existingConv = get().conversations.find((c) => c.id === conversationId);
+    if (!existingConv) {
+      try {
+        const res = await startConversationApi(conversationId); // here conversationId = providerId
+        if (!res?.data?.id) throw new Error("Failed to create conversation");
+        realConversationId = res.data.id;
 
-  // Optimistically add message
-  set((state) => ({ messages: [...state.messages, tempMessage] }));
+        // Add to conversations
+        set((state) => ({
+          conversations: [...state.conversations, res.data],
+          activeConversation: res.data,
+          messages: [],
+        }));
 
-  // Emit to socket
-  s.emit("sendMessage", payload);
-},
+        s.emit("joinConversation", realConversationId);
+      } catch (err) {
+        console.error("Failed to create conversation:", err);
+        return;
+      }
+    }
 
+    const payload = {
+      conversationId: realConversationId,
+      senderId: userId,
+      content,
+      fileUrl: fileBase64,
+    };
+
+    const tempMessage = {
+      id: "tmp-" + Date.now(),
+      conversationId: realConversationId,
+      senderId: userId,
+      content,
+      fileUrl: fileBase64,
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    set((state) => ({ messages: [...state.messages, tempMessage] }));
+
+    s.emit("sendMessage", payload);
+  },
 }));
 
 export default useChatStore;

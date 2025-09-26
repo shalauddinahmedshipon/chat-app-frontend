@@ -6,57 +6,44 @@ import { useEffect, useMemo } from "react";
 export default function ProviderCard({ provider }) {
   const navigate = useNavigate();
   const user = useUserStore((s) => s.user);
-  const { conversations,loadingConversations, setActiveConversation,fetchConversations} = useChatStore();
+  const {
+    conversations,
+    loadingConversations,
+    setActiveConversation,
+    startConversation,
+    fetchConversations,
+  } = useChatStore();
 
   const existingConv = useMemo(() => {
-  return conversations.find(
-    (c) => c.providerId === provider.user.id || c.provider?.id === provider.user.id
-  );
-}, [conversations, provider.user.id]);
+    return conversations.find(
+      (c) => c.providerId === provider.user.id || c.provider?.id === provider.user.id
+    );
+  }, [conversations, provider.user.id]);
 
-console.log("existingConv",existingConv)
-const handleMessage = () => {
-  if (!user) return;
+  const handleMessage = async () => {
+    if (!user) return;
 
-  let conv = existingConv;
-  if (!conv) {
-    const virtualId = `virtual_${provider.user.id}_${Date.now()}`;
-   conv = {
-  id: virtualId,
-  providerId: provider.user.id,
-  userId: user.id,
-  user: {
-    id: user.id,
-    name: user.name, // ✅ include name
-    email: user.email,
-  },
-  provider: {
-    id: provider.user.id,
-    providerProfile: {
-      bussinessName: provider.bussinessName,
-    },
+    let conv = existingConv;
 
-  },
-  messages: [],
-  unreadCount: 0,
-};
+    if (!conv) {
+      // No existing conversation, start a new one
+      conv = await startConversation(provider.user.id);
+    }
 
-    setActiveConversation(conv, true);
-  } else {
+    // Set as active
     setActiveConversation(conv);
-  }
 
-  navigate(`/chat?conversationId=${conv.id}&providerId=${provider.user.id}&providerName=${provider.bussinessName}`);
-};
-
-useEffect(() => {
-  const fetchData = async () => {
-    await fetchConversations();
+    // Navigate to chat page
+    navigate(
+      `/chat?conversationId=${conv.id}&providerId=${provider.user.id}&providerName=${provider.bussinessName}`
+    );
   };
-  fetchData();
-}, []);
 
-const isConversationsLoaded = !loadingConversations && conversations?.length >= 0;
+  useEffect(() => {
+    fetchConversations();
+  }, [fetchConversations]);
+
+  const isConversationsLoaded = !loadingConversations && conversations?.length >= 0;
 
   return (
     <div className="border rounded-lg shadow-md p-4 flex justify-between items-center">
@@ -65,14 +52,14 @@ const isConversationsLoaded = !loadingConversations && conversations?.length >= 
         <p className="text-gray-600">{provider.email}</p>
         <p className="text-sm text-gray-500">{provider.phone}</p>
       </div>
-    
-<button
-  onClick={handleMessage}
-  disabled={!isConversationsLoaded}
-  className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
->
-  Message
-</button>
+
+      <button
+        onClick={handleMessage}
+        disabled={!isConversationsLoaded}
+        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+      >
+        Message
+      </button>
     </div>
   );
 }

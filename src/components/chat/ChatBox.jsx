@@ -1,9 +1,7 @@
-// src/components/chat/ChatBox.jsx
 import { useEffect, useRef } from "react";
 import useChatStore from "../../store/chatStore";
 import useUserStore from "../../store/userStore";
 import MessageInput from "./MessageInput";
-
 
 export default function ChatBox({ conversation }) {
   const { messages, fetchMessages } = useChatStore();
@@ -31,22 +29,17 @@ export default function ChatBox({ conversation }) {
     );
   }
 
-
-
-const receiver = conversation?.userId === user?.id
-  ? conversation?.provider?.providerProfile?.bussinessName || "Chat"
-  : conversation?.user?.name || "Chat"; // ✅ always exists
-
-
-console.log("receiver",receiver)
+  // Determine receiver name
+  const receiver =
+    conversation?.userId === user?.id
+      ? conversation?.provider?.providerProfile?.bussinessName || "Chat"
+      : conversation?.user?.name || "Chat";
 
   return (
     <div className="flex flex-col h-full">
-      {/* Top Navbar (fixed at top) */}
+      {/* Top Navbar */}
       <div className="sticky flex justify-between top-0 z-10 p-4 border-b bg-gray-100 font-semibold text-lg shadow-sm">
-       {/* <h1> {receiver?.name || receiver?.providerProfile?.bussinessName || "Chat"}</h1> */}
-         <h1> {receiver}</h1>
-   
+        <h1>{receiver}</h1>
       </div>
 
       {/* Messages Area */}
@@ -56,13 +49,9 @@ console.log("receiver",receiver)
         )}
 
         {messages.map((msg) => {
-          const isMine =
-            msg.senderId === user?.id ||
-            (msg.sender && msg.sender.id === user?.id);
-
+          const isMine = msg.senderId === user?.id;
           const isImage =
-            msg.fileUrl &&
-            /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.fileUrl);
+            msg.fileUrl && /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.fileUrl);
 
           return (
             <div
@@ -76,37 +65,31 @@ console.log("receiver",receiver)
                     : "bg-gray-200 text-black rounded-bl-none"
                 }`}
               >
-                {/* Text content */}
                 {msg.content && <p>{msg.content}</p>}
 
-                {/* File (image or link) */}
-              {msg.fileUrl && (
-  <div className="mt-2">
-    {msg.fileUrl.startsWith("data:") || /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.fileUrl) ? (
-      <img
-        src={msg.fileUrl}
-        alt="attachment"
-        className="max-w-full rounded"
-      />
-    ) : (
-      <a
-        href={msg.fileUrl}
-        target="_blank"
-        rel="noreferrer"
-        className="text-sm underline"
-      >
-        📎 Download file
-      </a>
-    )}
-  </div>
-)}
+                {msg.fileUrl && (
+                  <div className="mt-2">
+                    {msg.fileUrl.startsWith("data:") || isImage ? (
+                      <img
+                        src={msg.fileUrl}
+                        alt="attachment"
+                        className="max-w-full rounded"
+                      />
+                    ) : (
+                      <a
+                        href={msg.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm underline"
+                      >
+                        📎 Download file
+                      </a>
+                    )}
+                  </div>
+                )}
 
-
-                {/* Time */}
                 <div
-                  className={`text-xs mt-1 ${
-                    isMine ? "text-gray-200" : "text-gray-500"
-                  }`}
+                  className={`text-xs mt-1 ${isMine ? "text-gray-200" : "text-gray-500"}`}
                 >
                   {new Date(msg.createdAt).toLocaleTimeString([], {
                     hour: "2-digit",
@@ -118,7 +101,6 @@ console.log("receiver",receiver)
           );
         })}
 
-        {/* Auto-scroll anchor */}
         <div ref={messagesEndRef} />
       </div>
 
