@@ -7,7 +7,7 @@ import {
   getMessagesApi,
 } from "../api/chat";
 
-const BACKEND_WS = "http://localhost:5000"; // adjust for your environment
+const BACKEND_WS =import.meta.env.VITE_BASE_URL;
 
 const useChatStore = create((set, get) => ({
   socket: null,
